@@ -1,8 +1,11 @@
 package com.example.studentmanager.controller;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.example.studentmanager.dto.ApiResponse;
+import com.example.studentmanager.entity.ClassEntity;
 import com.example.studentmanager.entity.Student;
-import com.example.studentmanager.repository.StudentRepository;
+import com.example.studentmanager.mapper.ClassMapper;
+import com.example.studentmanager.mapper.StudentMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
@@ -14,7 +17,8 @@ import java.util.*;
 @RequiredArgsConstructor
 public class MonitorController {
 
-    private final StudentRepository studentRepository;
+    private final StudentMapper studentMapper;
+    private final ClassMapper classMapper;
 
     /**
      * 班长查看同班同学列表（含基本信息，不含密码和成绩）
@@ -23,9 +27,8 @@ public class MonitorController {
     public ApiResponse<List<Map<String, Object>>> getClassmates(
             @RequestParam Long classId) {
         try {
-            List<Student> classmates = studentRepository.findAll().stream()
-                    .filter(s -> s.getClazz() != null && s.getClazz().getClId().equals(classId))
-                    .toList();
+            List<Student> classmates = studentMapper.selectList(
+                    new LambdaQueryWrapper<Student>().eq(Student::getClId, classId));
 
             List<Map<String, Object>> result = new ArrayList<>();
             for (Student s : classmates) {
@@ -35,7 +38,9 @@ public class MonitorController {
                 map.put("name", s.getName());
                 map.put("major", s.getMajor());
                 map.put("status", s.getStatus() == 0 ? "在读" : s.getStatus() == 1 ? "班长" : "休学");
-                map.put("className", s.getClazz() != null ? s.getClazz().getClassname() : null);
+                // Populate class info
+                ClassEntity clazz = s.getClId() != null ? classMapper.selectById(s.getClId()) : null;
+                map.put("className", clazz != null ? clazz.getClassname() : null);
                 result.add(map);
             }
             return ApiResponse.success(result);
@@ -54,8 +59,8 @@ public class MonitorController {
             @PathVariable Long studentId,
             @RequestBody Map<String, String> body) {
         try {
-            Student student = studentRepository.findById(studentId)
-                    .orElseThrow(() -> new RuntimeException("学生不存在"));
+            Student student = studentMapper.selectById(studentId);
+            if (student == null) throw new RuntimeException("学生不存在");
 
             String name = body.get("name");
             String major = body.get("major");
@@ -67,9 +72,7 @@ public class MonitorController {
                 student.setMajor(major);
             }
 
-            // 不允许修改status、password、username — 静默忽略
-
-            studentRepository.save(student);
+            studentMapper.updateById(student);
             return ApiResponse.success("学生信息更新成功");
         } catch (RuntimeException e) {
             return ApiResponse.error(400, e.getMessage());

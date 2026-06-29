@@ -1,7 +1,7 @@
 package com.example.studentmanager.service;
 
 import com.example.studentmanager.entity.OperationLog;
-import com.example.studentmanager.repository.OperationLogRepository;
+import com.example.studentmanager.mapper.OperationLogMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -10,7 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class OperationLogService {
 
-    private final OperationLogRepository operationLogRepository;
+    private final OperationLogMapper operationLogMapper;
 
     @Transactional
     public void log(String userType, Long userId, String operationType,
@@ -26,6 +26,6 @@ public class OperationLogService {
                 .newValue(newValue)
                 .ipAddress(ipAddress)
                 .build();
-        operationLogRepository.save(log);
+        operationLogMapper.insert(log);
     }
 }

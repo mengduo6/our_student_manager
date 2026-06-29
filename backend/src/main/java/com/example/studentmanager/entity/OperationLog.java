@@ -1,11 +1,10 @@
 package com.example.studentmanager.entity;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.*;
 import lombok.*;
 import java.time.LocalDateTime;
 
-@Entity
-@Table(name = "operation_log")
+@TableName("operation_log")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -13,36 +12,34 @@ import java.time.LocalDateTime;
 @Builder
 public class OperationLog {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "log_id")
+    @TableId(value = "log_id", type = IdType.AUTO)
     private Long logId;
 
-    @Column(name = "user_type", nullable = false, length = 20)
+    @TableField("user_type")
     private String userType;
 
-    @Column(name = "user_id", nullable = false)
+    @TableField("user_id")
     private Long userId;
 
-    @Column(name = "operation_type", nullable = false, length = 50)
+    @TableField("operation_type")
     private String operationType;
 
-    @Column(name = "target_table", nullable = false, length = 50)
+    @TableField("target_table")
     private String targetTable;
 
-    @Column(name = "target_id", nullable = false)
+    @TableField("target_id")
     private Long targetId;
 
-    @Column(name = "old_value", columnDefinition = "TEXT")
+    @TableField("old_value")
     private String oldValue;
 
-    @Column(name = "new_value", columnDefinition = "TEXT")
+    @TableField("new_value")
     private String newValue;
 
-    @Column(name = "ip_address", length = 50)
+    @TableField("ip_address")
     private String ipAddress;
 
-    @Column(name = "created_at", nullable = false)
+    @TableField("created_at")
     @Builder.Default
     private LocalDateTime createdAt = LocalDateTime.now();
 }

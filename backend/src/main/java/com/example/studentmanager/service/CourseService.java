@@ -1,10 +1,9 @@
 package com.example.studentmanager.service;
 
 import com.example.studentmanager.entity.*;
-import com.example.studentmanager.repository.*;
+import com.example.studentmanager.mapper.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -13,12 +12,16 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class CourseService {
 
-    private final CourseRepository courseRepository;
-    private final TeacherRepository teacherRepository;
+    private final CourseMapper courseMapper;
+    private final TeacherMapper teacherMapper;
 
     public List<Map<String, Object>> getAllCourses() {
-        List<Course> courses = courseRepository.findAll();
+        List<Course> courses = courseMapper.selectList(null);
         return courses.stream().map(course -> {
+            // Populate teacher
+            if (course.getTId() != null) {
+                course.setTeacher(teacherMapper.selectById(course.getTId()));
+            }
             Map<String, Object> map = new LinkedHashMap<>();
             map.put("courseId", course.getCId());
             map.put("subject", course.getSubject());

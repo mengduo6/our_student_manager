@@ -3,10 +3,12 @@ package com.example.studentmanager.service;
 import com.example.studentmanager.dto.LoginRequest;
 import com.example.studentmanager.dto.LoginResponse;
 import com.example.studentmanager.dto.RegisterRequest;
+import com.example.studentmanager.entity.ClassEntity;
 import com.example.studentmanager.entity.Student;
 import com.example.studentmanager.entity.Teacher;
-import com.example.studentmanager.repository.StudentRepository;
-import com.example.studentmanager.repository.TeacherRepository;
+import com.example.studentmanager.mapper.ClassMapper;
+import com.example.studentmanager.mapper.StudentMapper;
+import com.example.studentmanager.mapper.TeacherMapper;
 import com.example.studentmanager.util.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -16,16 +18,16 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class AuthService {
 
-    private final StudentRepository studentRepository;
-    private final TeacherRepository teacherRepository;
+    private final StudentMapper studentMapper;
+    private final TeacherMapper teacherMapper;
+    private final ClassMapper classMapper;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
 
     public LoginResponse login(LoginRequest request) {
         // Try student first
-        var studentOpt = studentRepository.findByUsername(request.getUsername());
-        if (studentOpt.isPresent()) {
-            Student student = studentOpt.get();
+        Student student = studentMapper.selectByUsername(request.getUsername());
+        if (student != null) {
             if (!passwordEncoder.matches(request.getPassword(), student.getPassword())) {
                 throw new RuntimeException("密码错误");
             }
@@ -40,9 +42,8 @@ public class AuthService {
         }
 
         // Try teacher
-        var teacherOpt = teacherRepository.findByUsername(request.getUsername());
-        if (teacherOpt.isPresent()) {
-            Teacher teacher = teacherOpt.get();
+        Teacher teacher = teacherMapper.selectByUsername(request.getUsername());
+        if (teacher != null) {
             if (!passwordEncoder.matches(request.getPassword(), teacher.getPassword())) {
                 throw new RuntimeException("密码错误");
             }
@@ -60,10 +61,10 @@ public class AuthService {
     }
 
     public void registerStudent(RegisterRequest request) {
-        if (studentRepository.existsByUsername(request.getUsername())) {
+        if (studentMapper.existsByUsername(request.getUsername())) {
             throw new RuntimeException("用户名已存在");
         }
-        if (teacherRepository.existsByUsername(request.getUsername())) {
+        if (teacherMapper.existsByUsername(request.getUsername())) {
             throw new RuntimeException("用户名已存在");
         }
 
@@ -74,14 +75,14 @@ public class AuthService {
                 .major(request.getMajor())
                 .status(0)
                 .build();
-        studentRepository.save(student);
+        studentMapper.insert(student);
     }
 
     public void registerTeacher(RegisterRequest request) {
-        if (studentRepository.existsByUsername(request.getUsername())) {
+        if (studentMapper.existsByUsername(request.getUsername())) {
             throw new RuntimeException("用户名已存在");
         }
-        if (teacherRepository.existsByUsername(request.getUsername())) {
+        if (teacherMapper.existsByUsername(request.getUsername())) {
             throw new RuntimeException("用户名已存在");
         }
 
@@ -91,22 +92,27 @@ public class AuthService {
                 .name(request.getName())
                 .status(0)
                 .build();
-        teacherRepository.save(teacher);
+        teacherMapper.insert(teacher);
     }
 
     public Object getCurrentUser(String username) {
-        var studentOpt = studentRepository.findByUsername(username);
-        if (studentOpt.isPresent()) {
-            Student student = studentOpt.get();
+        Student student = studentMapper.selectByUsername(username);
+        if (student != null) {
             String role = student.getStatus() == 1 ? "MONITOR" : "STUDENT";
-            Long classId = student.getClazz() != null ? student.getClazz().getClId() : null;
-            String className = student.getClazz() != null ? student.getClazz().getClassname() : null;
+            Long classId = null;
+            String className = null;
+            if (student.getClId() != null) {
+                ClassEntity clazz = classMapper.selectById(student.getClId());
+                if (clazz != null) {
+                    classId = clazz.getClId();
+                    className = clazz.getClassname();
+                }
+            }
             return new UserInfo(student.getSId(), student.getUsername(), student.getName(), role, student.getStatus(), student.getMajor(), classId, className);
         }
 
-        var teacherOpt = teacherRepository.findByUsername(username);
-        if (teacherOpt.isPresent()) {
-            Teacher teacher = teacherOpt.get();
+        Teacher teacher = teacherMapper.selectByUsername(username);
+        if (teacher != null) {
             String role = teacher.getStatus() == 1 ? "SUPER_ADMIN" : "TEACHER";
             return new UserInfo(teacher.getTId(), teacher.getUsername(), teacher.getName(), role, teacher.getStatus(), null, null, null);
         }
