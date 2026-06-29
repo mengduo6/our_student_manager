@@ -3,7 +3,7 @@ package com.example.studentmanager.controller;
 import com.example.studentmanager.dto.ApiResponse;
 import com.example.studentmanager.entity.Course;
 import com.example.studentmanager.entity.Teacher;
-import com.example.studentmanager.repository.GradeRepository;
+import com.example.studentmanager.mapper.GradeMapper;
 import com.example.studentmanager.service.TeacherService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -18,7 +18,7 @@ import java.util.*;
 public class TeacherController {
 
     private final TeacherService teacherService;
-    private final GradeRepository gradeRepository;
+    private final GradeMapper gradeMapper;
 
     @GetMapping("/info")
     public ApiResponse<Map<String, Object>> getTeacherInfo(Authentication authentication) {
@@ -67,7 +67,7 @@ public class TeacherController {
                 map.put("about", course.getAbout());
                 map.put("teacherId", course.getTeacher() != null ? course.getTeacher().getTId() : null);
                 map.put("teacherName", course.getTeacher() != null ? course.getTeacher().getName() : null);
-                map.put("enrollmentCount", gradeRepository.findByCourseCId(course.getCId()).size());
+                map.put("enrollmentCount", gradeMapper.selectByCourseCId(course.getCId()).size());
                 result.add(map);
             }
             return ApiResponse.success(result);

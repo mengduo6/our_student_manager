@@ -1,12 +1,9 @@
 package com.example.studentmanager.entity;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.*;
 import lombok.*;
 
-@Entity
-@Table(name = "teacher_to_class", uniqueConstraints = {
-    @UniqueConstraint(columnNames = {"t_id", "c_id"})
-})
+@TableName("teacher_to_class")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -14,16 +11,18 @@ import lombok.*;
 @Builder
 public class TeacherToClass {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "ttc_id")
+    @TableId(value = "ttc_id", type = IdType.AUTO)
     private Long ttcId;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "t_id")
+    @TableField("t_id")
+    private Long tId;
+
+    @TableField("c_id")
+    private Long cId;
+
+    @TableField(exist = false)
     private Teacher teacher;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "c_id")
+    @TableField(exist = false)
     private Course course;
 }

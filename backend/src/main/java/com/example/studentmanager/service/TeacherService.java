@@ -1,7 +1,7 @@
 package com.example.studentmanager.service;
 
 import com.example.studentmanager.entity.*;
-import com.example.studentmanager.repository.*;
+import com.example.studentmanager.mapper.*;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -14,43 +14,51 @@ import java.util.*;
 @RequiredArgsConstructor
 public class TeacherService {
 
-    private final CourseRepository courseRepository;
-    private final GradeRepository gradeRepository;
-    private final TeacherRepository teacherRepository;
-    private final StudentRepository studentRepository;
-    private final TeacherToClassRepository teacherToClassRepository;
+    private final CourseMapper courseMapper;
+    private final GradeMapper gradeMapper;
+    private final TeacherMapper teacherMapper;
+    private final StudentMapper studentMapper;
+    private final TeacherToClassMapper teacherToClassMapper;
     private final OperationLogService operationLogService;
     private final ObjectMapper objectMapper;
 
     public List<Course> getMyCourses(Long teacherId) {
-        return courseRepository.findByTeacherTId(teacherId);
+        List<Course> courses = courseMapper.selectByTeacherTId(teacherId);
+        // Populate teacher
+        Teacher teacher = teacherMapper.selectById(teacherId);
+        for (Course c : courses) {
+            c.setTeacher(teacher);
+        }
+        return courses;
     }
 
     @Transactional
     public Course createCourse(Long teacherId, String subject, String about) {
-        Teacher teacher = teacherRepository.findById(teacherId)
-                .orElseThrow(() -> new RuntimeException("教师不存在"));
+        Teacher teacher = teacherMapper.selectById(teacherId);
+        if (teacher == null) throw new RuntimeException("教师不存在");
 
         if (teacher.getStatus() == 2) {
             throw new RuntimeException("退休教师不能创建课程");
         }
 
         Course course = Course.builder()
-                .teacher(teacher)
+                .tId(teacherId)
                 .subject(subject)
                 .about(about)
                 .build();
-        return courseRepository.save(course);
+        courseMapper.insert(course);
+        course.setTeacher(teacher);
+        return course;
     }
 
     @Transactional
     public Course updateCourse(Long teacherId, Long courseId, String subject, String about) {
-        Course course = courseRepository.findById(courseId)
-                .orElseThrow(() -> new RuntimeException("课程不存在"));
+        Course course = courseMapper.selectById(courseId);
+        if (course == null) throw new RuntimeException("课程不存在");
 
-        if (!course.getTeacher().getTId().equals(teacherId)) {
-            Teacher teacher = teacherRepository.findById(teacherId)
-                    .orElseThrow(() -> new RuntimeException("教师不存在"));
+        if (!course.getTId().equals(teacherId)) {
+            Teacher teacher = teacherMapper.selectById(teacherId);
+            if (teacher == null) throw new RuntimeException("教师不存在");
             if (teacher.getStatus() != 1) {
                 throw new RuntimeException("无权限修改该课程");
             }
@@ -58,73 +66,78 @@ public class TeacherService {
 
         if (subject != null) course.setSubject(subject);
         if (about != null) course.setAbout(about);
-        return courseRepository.save(course);
+        courseMapper.updateById(course);
+
+        if (course.getTId() != null) {
+            course.setTeacher(teacherMapper.selectById(course.getTId()));
+        }
+        return course;
     }
 
     @Transactional
     public void deleteCourse(Long courseId) {
-        courseRepository.findById(courseId)
-                .orElseThrow(() -> new RuntimeException("课程不存在"));
-
-        List<Grade> grades = gradeRepository.findByCourseCId(courseId);
-        for (Grade g : grades) {
-            gradeRepository.deleteByStudentSIdAndCourseCId(g.getStudent().getSId(), courseId);
+        if (courseMapper.selectById(courseId) == null) {
+            throw new RuntimeException("课程不存在");
         }
-        courseRepository.deleteById(courseId);
+
+        List<Grade> grades = gradeMapper.selectByCourseCId(courseId);
+        for (Grade g : grades) {
+            gradeMapper.deleteBySIdAndCId(g.getSId(), courseId);
+        }
+        courseMapper.deleteById(courseId);
     }
 
     @Transactional
     public void updateGrade(Long teacherId, Long studentId, Long courseId, Integer score) {
-        Course course = courseRepository.findById(courseId)
-                .orElseThrow(() -> new RuntimeException("课程不存在"));
+        Course course = courseMapper.selectById(courseId);
+        if (course == null) throw new RuntimeException("课程不存在");
 
-        // Check if this teacher owns the course or is admin
-        if (!course.getTeacher().getTId().equals(teacherId)) {
-            Teacher teacher = teacherRepository.findById(teacherId)
-                    .orElseThrow(() -> new RuntimeException("教师不存在"));
+        if (!course.getTId().equals(teacherId)) {
+            Teacher teacher = teacherMapper.selectById(teacherId);
+            if (teacher == null) throw new RuntimeException("教师不存在");
             if (teacher.getStatus() != 1) {
                 throw new RuntimeException("无权限修改该课程的成绩");
             }
         }
 
-        Grade grade = gradeRepository.findByStudentSIdAndCourseCId(studentId, courseId)
-                .orElseThrow(() -> new RuntimeException("该学生未选修此课程"));
+        Grade grade = gradeMapper.selectBySIdAndCId(studentId, courseId);
+        if (grade == null) throw new RuntimeException("该学生未选修此课程");
 
         grade.setScore(score);
-        gradeRepository.save(grade);
+        gradeMapper.updateById(grade);
     }
 
     @Transactional
     public void removeStudentFromCourse(Long teacherId, Long studentId, Long courseId) {
-        Course course = courseRepository.findById(courseId)
-                .orElseThrow(() -> new RuntimeException("课程不存在"));
+        Course course = courseMapper.selectById(courseId);
+        if (course == null) throw new RuntimeException("课程不存在");
 
-        if (!course.getTeacher().getTId().equals(teacherId)) {
-            Teacher teacher = teacherRepository.findById(teacherId)
-                    .orElseThrow(() -> new RuntimeException("教师不存在"));
+        if (!course.getTId().equals(teacherId)) {
+            Teacher teacher = teacherMapper.selectById(teacherId);
+            if (teacher == null) throw new RuntimeException("教师不存在");
             if (teacher.getStatus() != 1) {
                 throw new RuntimeException("无权限操作该课程");
             }
         }
 
-        if (!gradeRepository.existsByStudentSIdAndCourseCId(studentId, courseId)) {
+        if (!gradeMapper.existsBySIdAndCId(studentId, courseId)) {
             throw new RuntimeException("该学生未选修此课程");
         }
 
-        gradeRepository.deleteByStudentSIdAndCourseCId(studentId, courseId);
+        gradeMapper.deleteBySIdAndCId(studentId, courseId);
     }
 
     public Teacher getTeacherByUsername(String username) {
-        return teacherRepository.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("教师不存在"));
+        Teacher teacher = teacherMapper.selectByUsername(username);
+        if (teacher == null) throw new RuntimeException("教师不存在");
+        return teacher;
     }
 
     @Transactional
     public Map<String, Object> updateProfile(Long teacherId, Map<String, String> updates, String ipAddress) {
-        Teacher teacher = teacherRepository.findById(teacherId)
-                .orElseThrow(() -> new RuntimeException("教师不存在"));
+        Teacher teacher = teacherMapper.selectById(teacherId);
+        if (teacher == null) throw new RuntimeException("教师不存在");
 
-        // Capture old values for audit log
         Map<String, String> oldValues = new LinkedHashMap<>();
         oldValues.put("name", teacher.getName());
         oldValues.put("department", teacher.getDepartment());
@@ -189,7 +202,7 @@ public class TeacherService {
             newValues.put("phone", teacher.getPhone());
         }
 
-        teacherRepository.save(teacher);
+        teacherMapper.updateById(teacher);
 
         try {
             operationLogService.log(
@@ -215,21 +228,22 @@ public class TeacherService {
     }
 
     public List<Map<String, Object>> getCourseStudents(Long teacherId, Long courseId) {
-        Course course = courseRepository.findById(courseId)
-                .orElseThrow(() -> new RuntimeException("课程不存在"));
+        Course course = courseMapper.selectById(courseId);
+        if (course == null) throw new RuntimeException("课程不存在");
 
-        if (!course.getTeacher().getTId().equals(teacherId)) {
-            Teacher teacher = teacherRepository.findById(teacherId)
-                    .orElseThrow(() -> new RuntimeException("教师不存在"));
+        if (!course.getTId().equals(teacherId)) {
+            Teacher teacher = teacherMapper.selectById(teacherId);
+            if (teacher == null) throw new RuntimeException("教师不存在");
             if (teacher.getStatus() != 1) {
                 throw new RuntimeException("无权限查看该课程学生");
             }
         }
 
-        List<Grade> grades = gradeRepository.findByCourseCId(courseId);
+        List<Grade> grades = gradeMapper.selectByCourseCId(courseId);
         List<Map<String, Object>> result = new ArrayList<>();
         for (Grade grade : grades) {
-            Student student = grade.getStudent();
+            Student student = studentMapper.selectById(grade.getSId());
+            if (student == null) continue;
             Map<String, Object> map = new LinkedHashMap<>();
             map.put("id", student.getSId());
             map.put("name", student.getName());

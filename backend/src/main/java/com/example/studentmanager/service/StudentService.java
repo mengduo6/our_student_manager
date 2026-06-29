@@ -1,7 +1,7 @@
 package com.example.studentmanager.service;
 
 import com.example.studentmanager.entity.*;
-import com.example.studentmanager.repository.*;
+import com.example.studentmanager.mapper.*;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -14,24 +14,28 @@ import java.util.*;
 @RequiredArgsConstructor
 public class StudentService {
 
-    private final GradeRepository gradeRepository;
-    private final CourseRepository courseRepository;
-    private final StudentRepository studentRepository;
-    private final TeacherToClassRepository teacherToClassRepository;
+    private final GradeMapper gradeMapper;
+    private final CourseMapper courseMapper;
+    private final StudentMapper studentMapper;
+    private final TeacherMapper teacherMapper;
+    private final ClassMapper classMapper;
     private final OperationLogService operationLogService;
     private final ObjectMapper objectMapper;
 
     public List<Map<String, Object>> getEnrolledCourses(Long studentId) {
-        List<Grade> grades = gradeRepository.findByStudentSId(studentId);
+        List<Grade> grades = gradeMapper.selectByStudentSId(studentId);
         List<Map<String, Object>> result = new ArrayList<>();
 
         for (Grade grade : grades) {
-            Course course = grade.getCourse();
-            Teacher teacher = course.getTeacher();
+            Course course = courseMapper.selectById(grade.getCId());
+            Teacher teacher = null;
+            if (course != null && course.getTId() != null) {
+                teacher = teacherMapper.selectById(course.getTId());
+            }
             Map<String, Object> map = new LinkedHashMap<>();
-            map.put("courseId", course.getCId());
-            map.put("subject", course.getSubject());
-            map.put("about", course.getAbout());
+            map.put("courseId", grade.getCId());
+            map.put("subject", course != null ? course.getSubject() : null);
+            map.put("about", course != null ? course.getAbout() : null);
             map.put("teacherName", teacher != null ? teacher.getName() : null);
             map.put("teacherId", teacher != null ? teacher.getTId() : null);
             map.put("score", grade.getScore());
@@ -43,34 +47,34 @@ public class StudentService {
 
     @Transactional
     public void enrollCourse(Long studentId, Long courseId) {
-        Student student = studentRepository.findById(studentId)
-                .orElseThrow(() -> new RuntimeException("学生不存在"));
+        Student student = studentMapper.selectById(studentId);
+        if (student == null) throw new RuntimeException("学生不存在");
 
         if (student.getStatus() == 2) {
             throw new RuntimeException("休学学生不能选课");
         }
 
-        if (gradeRepository.existsByStudentSIdAndCourseCId(studentId, courseId)) {
+        if (gradeMapper.existsBySIdAndCId(studentId, courseId)) {
             throw new RuntimeException("已选过该课程");
         }
 
-        Course course = courseRepository.findById(courseId)
-                .orElseThrow(() -> new RuntimeException("课程不存在"));
+        Course course = courseMapper.selectById(courseId);
+        if (course == null) throw new RuntimeException("课程不存在");
 
         Grade grade = Grade.builder()
-                .student(student)
-                .course(course)
+                .sId(studentId)
+                .cId(courseId)
                 .score(0)
                 .build();
-        gradeRepository.save(grade);
+        gradeMapper.insert(grade);
     }
 
     @Transactional
     public void unenrollCourse(Long studentId, Long courseId) {
-        if (!gradeRepository.existsByStudentSIdAndCourseCId(studentId, courseId)) {
+        if (!gradeMapper.existsBySIdAndCId(studentId, courseId)) {
             throw new RuntimeException("未选该课程");
         }
-        gradeRepository.deleteByStudentSIdAndCourseCId(studentId, courseId);
+        gradeMapper.deleteBySIdAndCId(studentId, courseId);
     }
 
     public List<Map<String, Object>> getMyGrades(Long studentId) {
@@ -78,14 +82,19 @@ public class StudentService {
     }
 
     public Student getStudentByUsername(String username) {
-        return studentRepository.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("学生不存在"));
+        Student student = studentMapper.selectByUsername(username);
+        if (student == null) throw new RuntimeException("学生不存在");
+        // Populate clazz
+        if (student.getClId() != null) {
+            student.setClazz(classMapper.selectById(student.getClId()));
+        }
+        return student;
     }
 
     @Transactional
     public Map<String, Object> updateProfile(Long studentId, Map<String, String> updates, String ipAddress) {
-        Student student = studentRepository.findById(studentId)
-                .orElseThrow(() -> new RuntimeException("学生不存在"));
+        Student student = studentMapper.selectById(studentId);
+        if (student == null) throw new RuntimeException("学生不存在");
 
         // Capture old values for audit log
         Map<String, String> oldValues = new LinkedHashMap<>();
@@ -96,7 +105,6 @@ public class StudentService {
 
         Map<String, String> newValues = new LinkedHashMap<>();
 
-        // Update allowed fields only
         if (updates.containsKey("name")) {
             String name = updates.get("name");
             if (name == null || name.trim().isEmpty()) {
@@ -143,9 +151,8 @@ public class StudentService {
             newValues.put("phone", student.getPhone());
         }
 
-        studentRepository.save(student);
+        studentMapper.updateById(student);
 
-        // Record operation log
         try {
             operationLogService.log(
                     "STUDENT", studentId, "UPDATE_PROFILE",
@@ -155,10 +162,14 @@ public class StudentService {
                     ipAddress
             );
         } catch (JsonProcessingException ignored) {
-            // Log silently fails if JSON serialization fails
         }
 
-        // Build response
+        // Populate clazz
+        ClassEntity clazz = null;
+        if (student.getClId() != null) {
+            clazz = classMapper.selectById(student.getClId());
+        }
+
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("id", student.getSId());
         result.put("name", student.getName());
@@ -167,8 +178,8 @@ public class StudentService {
         result.put("email", student.getEmail());
         result.put("phone", student.getPhone());
         result.put("status", student.getStatus());
-        result.put("className", student.getClazz() != null ? student.getClazz().getClassname() : null);
-        result.put("classId", student.getClazz() != null ? student.getClazz().getClId() : null);
+        result.put("className", clazz != null ? clazz.getClassname() : null);
+        result.put("classId", clazz != null ? clazz.getClId() : null);
         return result;
     }
 }

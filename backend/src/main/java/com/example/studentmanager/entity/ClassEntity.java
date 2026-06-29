@@ -1,10 +1,9 @@
 package com.example.studentmanager.entity;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.*;
 import lombok.*;
 
-@Entity
-@Table(name = "class")
+@TableName("class")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -12,15 +11,15 @@ import lombok.*;
 @Builder
 public class ClassEntity {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "cl_id")
+    @TableId(value = "cl_id", type = IdType.AUTO)
     private Long clId;
 
-    @Column(nullable = false, unique = true, length = 50)
+    @TableField("classname")
     private String classname;
 
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "s_id")
+    @TableField("s_id")
+    private Long monitorId;
+
+    @TableField(exist = false)
     private Student monitor;
 }

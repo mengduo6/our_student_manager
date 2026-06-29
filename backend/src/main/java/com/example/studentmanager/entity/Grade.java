@@ -1,40 +1,29 @@
 package com.example.studentmanager.entity;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.*;
 import lombok.*;
-import java.io.Serializable;
 
-@Entity
-@Table(name = "grade")
+@TableName("grade")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@IdClass(Grade.GradeId.class)
 public class Grade {
 
-    @Id
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "s_id")
+    @TableId(value = "s_id", type = IdType.INPUT)
+    private Long sId;
+
+    @TableId(value = "c_id", type = IdType.INPUT)
+    private Long cId;
+
+    @TableField(exist = false)
     private Student student;
 
-    @Id
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "c_id")
+    @TableField(exist = false)
     private Course course;
 
-    @Column(nullable = false)
+    @TableField("score")
     @Builder.Default
     private Integer score = 0;
-
-    @Getter
-    @Setter
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @EqualsAndHashCode
-    public static class GradeId implements Serializable {
-        private Long student;
-        private Long course;
-    }
 }
